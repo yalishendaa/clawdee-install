@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# clawdee-install v3.0.1 -- installer
+# clawdee-install -- installer
 #
 # Installs on a fresh Ubuntu 22.04 / 24.04 VPS:
 #   - clawdee user (dedicated, non-login-privileged)
@@ -27,14 +27,13 @@ set -euo pipefail
 # CONSTANTS
 # =============================================================================
 
-readonly CLAWDEE_VERSION="3.0.3"
 readonly CLAWDEE_REPO="https://github.com/yalishendaa/clawdee-telegram-gateway.git"
 readonly CLAWDEE_DIR_NAME="claude-gateway"
 readonly NODE_MAJOR="22"
 readonly CLAWDEE_USER="clawdee"
 readonly CLAWDEE_HOME="/home/clawdee"
 
-# Template bundle (inherited from v2.2.6 -- pinned SHAs for supply chain).
+# Template bundle (pinned SHAs).
 readonly TEMPLATE_REPO="https://github.com/yalishendaa/clawdee-architecture.git"
 readonly TEMPLATE_SHA="93cc7ddf10c03472616a3a32ff7e6ac731ebe6f2"
 readonly SUPERPOWERS_REPO="https://github.com/pcvelz/superpowers.git"
@@ -89,7 +88,6 @@ banner() {
 ██║     ╚███╔███╔╝██║  ██║██████╔╝    ██████╔╝   ██║          ██║   ██║  ██║███████╗     ╚████╔╝ ███████║███████╗
 ╚═╝      ╚══╝╚══╝ ╚═╝  ╚═╝╚═════╝     ╚═════╝    ╚═╝          ╚═╝   ╚═╝  ╚═╝╚══════╝      ╚═══╝  ╚══════╝╚══════╝
 
-                   clawdee-install v3.0.1
 EOF
     printf '%b\n' "$C_NC"
 }
@@ -121,7 +119,7 @@ apt_get() {
     DEBIAN_FRONTEND=noninteractive apt-get "$@"
 }
 
-# Tmp tracking -- mirrors v2.2.6 cleanup trap.
+# Tmp tracking.
 TMPFILES=()
 TMPDIRS=()
 _cleanup() {
