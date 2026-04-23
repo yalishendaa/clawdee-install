@@ -139,7 +139,7 @@ _cleanup() {
 trap _cleanup EXIT
 
 is_noninteractive() {
-    [[ "${CLAWDEE_NONINTERACTIVE:-0}" == "1" ]] || [[ ! -t 0 ]]
+    [[ "${CLAWDEE_NONINTERACTIVE:-0}" == "1" ]] || ! (exec </dev/tty) 2>/dev/null
 }
 
 # prompt_or_env VAR ENV_NAME "prompt" [default] [--secret]
