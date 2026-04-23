@@ -1,29 +1,25 @@
 #!/usr/bin/env bash
-# clawdee-install v3.0.1 -- 3-Claude architecture installer
+# clawdee-install v3.0.1 -- installer
 #
 # Installs on a fresh Ubuntu 22.04 / 24.04 VPS:
 #   - clawdee user (dedicated, non-login-privileged)
 #   - Node.js 22 + Python 3.12 + Claude Code CLI
 #   - CLAWDEE: yalishendaa/clawdee-telegram-gateway -> systemd unit claude-gateway
-#   - Richard: RichardAtCT/claude-code-telegram v1.6.0 -> systemd unit claude-richard
 #
-# Both agents share Anthropic Max OAuth from /home/clawdee/.claude/
 # Operator runs `sudo -u clawdee claude login` once after install finishes.
 #
 # Usage:
-#   curl -fsSL https://yalishendaa.github.io/install | sudo bash
+#   curl -fsSL https://raw.githubusercontent.com/yalishendaa/clawdee/main/install.sh | sudo bash
 #   # or
 #   sudo ./install.sh
 #
 # Env overrides (non-interactive):
 #   CLAWDEE_BOT_TOKEN   CLAWDEE Telegram bot token
 #   CLAWDEE_BOT_USER    CLAWDEE bot @username (no @)
-#   CLAWDEE_RICHARD_BOT_TOKEN  Richard Telegram bot token
-#   CLAWDEE_RICHARD_BOT_USER   Richard bot @username (no @)
-#   CLAWDEE_TG_USER_ID         Operator Telegram numeric ID
-#   CLAWDEE_USER_NAME          Operator display name (for CLAWDEE CLAUDE.md)
-#   CLAWDEE_LANGUAGE           Operator language (default: Russian)
-#   CLAWDEE_TIMEZONE           Operator timezone (default: Europe/Moscow)
+#   CLAWDEE_TG_USER_ID  Operator Telegram numeric ID
+#   CLAWDEE_USER_NAME   Operator display name (for CLAWDEE CLAUDE.md)
+#   CLAWDEE_LANGUAGE    Operator language (default: Russian)
+#   CLAWDEE_TIMEZONE    Operator timezone (default: Europe/Moscow)
 
 set -euo pipefail
 
@@ -34,8 +30,6 @@ set -euo pipefail
 readonly CLAWDEE_VERSION="3.0.3"
 readonly CLAWDEE_REPO="https://github.com/yalishendaa/clawdee-telegram-gateway.git"
 readonly CLAWDEE_DIR_NAME="claude-gateway"
-readonly RICHARD_REPO_SPEC="git+https://github.com/RichardAtCT/claude-code-telegram@v1.6.0"
-readonly RICHARD_HOME="/opt/richard"
 readonly NODE_MAJOR="22"
 readonly CLAWDEE_USER="clawdee"
 readonly CLAWDEE_HOME="/home/clawdee"
@@ -86,13 +80,16 @@ step() {
 banner() {
     printf '\n%b' "$C_YELLOW"
     cat <<'EOF'
-   ____    _           _          _                        _       _ _
-  | ___|__| | __ _  __| |   __ _ | |      _ __   ___  _   _| |_    | | |
-  |___ \ / _` |/ _` |/ _` |  / _` || |_    | '_ \ / _ \| | | | __|___| | |
-   ___) | (_| | (_| | (_| | | (_| ||  _|   | | | |  __/| |_| | |_|___|_|_|
-  |____/ \__,_|\__,_|\__,_|  \__,_| |_|    |_| |_|\___| \__,_|\__|   (_|_)
 
-                   clawdee-install v3.0.1 -- 3-Claude edition
+                                                                                                          █╗ █╗
+██████╗ ██╗    ██╗██████╗ ██████╗     ██████╗ ██╗   ██╗    ████████╗██╗  ██╗███████╗    ██╗   ██╗███████╗███████╗
+██╔══██╗██║    ██║██╔══██╗██╔══██╗    ██╔══██╗╚██╗ ██╔╝    ╚══██╔══╝██║  ██║██╔════╝    ██║   ██║██╔════╝██╔════╝
+██████╔╝██║ █╗ ██║██████╔╝██║  ██║    ██████╔╝ ╚████╔╝        ██║   ███████║█████╗      ██║   ██║███████╗█████╗  
+██╔═══╝ ██║███╗██║██╔══██╗██║  ██║    ██╔══██╗  ╚██╔╝         ██║   ██╔══██║██╔══╝      ╚██╗ ██╔╝╚════██║██╔══╝  
+██║     ╚███╔███╔╝██║  ██║██████╔╝    ██████╔╝   ██║          ██║   ██║  ██║███████╗     ╚████╔╝ ███████║███████╗
+╚═╝      ╚══╝╚══╝ ╚═╝  ╚═╝╚═════╝     ╚═════╝    ╚═╝          ╚═╝   ╚═╝  ╚═╝╚══════╝      ╚═══╝  ╚══════╝╚══════╝
+
+                   clawdee-install v3.0.1
 EOF
     printf '%b\n' "$C_NC"
 }
@@ -591,8 +588,6 @@ ensure_clawdee_user() {
 # Globals set by collect_inputs
 CLAWDEE_BOT_TOKEN=""
 CLAWDEE_BOT_USERNAME=""
-RICHARD_BOT_TOKEN=""
-RICHARD_BOT_USERNAME=""
 TG_USER_ID=""
 OPERATOR_NAME=""
 OPERATOR_LANGUAGE=""
@@ -601,15 +596,12 @@ OPERATOR_TIMEZONE=""
 collect_inputs() {
     step 5 "Collecting operator inputs"
 
-    # Interactive flow (TTY present): installer asks the student for all values.
-    # Non-interactive flow (CLAWDEE_NONINTERACTIVE=1 or no TTY): env overrides
-    # required for tokens; operator profile falls back to safe defaults.
     if ! is_noninteractive; then
         cat <<'BRIEF'
 
-The installer will now ask a few questions. You need TWO Telegram bots ready
-(create them in @BotFather beforehand) and your numeric Telegram user ID
-(get it from @userinfobot). Tokens are hidden while typing.
+The installer will now ask a few questions. You need a Telegram bot ready
+(create it in @BotFather beforehand) and your numeric Telegram user ID
+(get it from @userinfobot). Token is hidden while typing.
 
 BRIEF
     fi
@@ -618,20 +610,15 @@ BRIEF
     prompt_or_env OPERATOR_LANGUAGE CLAWDEE_LANGUAGE   "Язык общения (English / Russian / ...)" "Russian"
     prompt_or_env OPERATOR_TIMEZONE CLAWDEE_TIMEZONE   "Таймзона (IANA: Europe/Moscow, Asia/Bangkok, ...)" "Europe/Moscow"
 
-    prompt_or_env CLAWDEE_BOT_TOKEN  CLAWDEE_BOT_TOKEN \
+    prompt_or_env CLAWDEE_BOT_TOKEN CLAWDEE_BOT_TOKEN \
         "CLAWDEE bot token (from @BotFather, формат 1234567890:ABC...)" \
-        "" --secret
-    prompt_or_env RICHARD_BOT_TOKEN CLAWDEE_RICHARD_BOT_TOKEN \
-        "Richard bot token (ДРУГОЙ бот, не совпадает с CLAWDEE)" \
         "" --secret
     prompt_or_env TG_USER_ID        CLAWDEE_TG_USER_ID \
         "Ваш Telegram numeric user ID (from @userinfobot)" \
         ""
 
     CLAWDEE_BOT_USERNAME="${CLAWDEE_BOT_USER:-}"
-    RICHARD_BOT_USERNAME="${CLAWDEE_RICHARD_BOT_USER:-}"
 
-    # Validate CLAWDEE token.
     if [[ -n "$CLAWDEE_BOT_TOKEN" ]]; then
         if ! validate_tg_token "$CLAWDEE_BOT_TOKEN"; then
             die "CLAWDEE token format invalid (expected '<digits>:<30+ chars>')."
@@ -647,27 +634,6 @@ BRIEF
         fi
     else
         log "CLAWDEE token empty (interactive skip / non-interactive no-env)."
-    fi
-
-    # Validate Richard token.
-    if [[ -n "$RICHARD_BOT_TOKEN" ]]; then
-        if ! validate_tg_token "$RICHARD_BOT_TOKEN"; then
-            die "Richard token format invalid."
-        fi
-        if [[ "$RICHARD_BOT_TOKEN" == "$CLAWDEE_BOT_TOKEN" && -n "$CLAWDEE_BOT_TOKEN" ]]; then
-            die "Richard token must differ from CLAWDEE token -- create a SEPARATE bot in @BotFather."
-        fi
-        local rresp
-        rresp=$(tg_get_me "$RICHARD_BOT_TOKEN")
-        if [[ "$(echo "$rresp" | jq -r '.ok // false' 2>/dev/null)" == "true" ]]; then
-            [[ -z "$RICHARD_BOT_USERNAME" ]] && \
-                RICHARD_BOT_USERNAME=$(echo "$rresp" | jq -r '.result.username // ""')
-            ok "Richard bot verified: @${RICHARD_BOT_USERNAME:-?}"
-        else
-            warn "Telegram getMe for Richard failed -- token will be written as-is."
-        fi
-    else
-        log "Richard token empty."
     fi
 
     if [[ -n "$TG_USER_ID" && ! "$TG_USER_ID" =~ ^[0-9]+$ ]]; then
@@ -824,50 +790,7 @@ REOF
 }
 
 # =============================================================================
-# STEP 7: INSTALL RICHARD
-# =============================================================================
-
-install_richard() {
-    step 7 "Installing Richard (claude-code-telegram)"
-
-    install -d -m 0755 -o "$CLAWDEE_USER" -g "$CLAWDEE_USER" "$RICHARD_HOME"
-
-    local venv="${RICHARD_HOME}/venv"
-    if [[ ! -x "${venv}/bin/python" ]]; then
-        sudo -u "$CLAWDEE_USER" -H -- env -C "$RICHARD_HOME" python3 -m venv "$venv"
-    fi
-
-    sudo -u "$CLAWDEE_USER" -H -- env -C "$RICHARD_HOME" "${venv}/bin/pip" install --upgrade pip --quiet
-    sudo -u "$CLAWDEE_USER" -H -- env -C "$RICHARD_HOME" "${venv}/bin/pip" install "$RICHARD_REPO_SPEC" --quiet
-
-    if [[ ! -x "${venv}/bin/claude-telegram-bot" ]]; then
-        die "Richard install did not produce 'claude-telegram-bot' binary in ${venv}/bin/."
-    fi
-
-    # .env
-    local env_tmp
-    env_tmp=$(mktemp)
-    render_template "${TEMPLATES_DIR}/richard.env" "$env_tmp" \
-        RICHARD_BOT_TOKEN    "$RICHARD_BOT_TOKEN" \
-        RICHARD_BOT_USERNAME "$RICHARD_BOT_USERNAME" \
-        TG_USER_ID           "$TG_USER_ID" \
-        USER                 "$CLAWDEE_USER"
-    install_as_user "$env_tmp" "${RICHARD_HOME}/.env" "$CLAWDEE_USER" 0600
-    rm -f "$env_tmp"
-
-    # systemd unit
-    local unit_tmp
-    unit_tmp=$(mktemp)
-    render_template "${TEMPLATES_DIR}/claude-richard.service" "$unit_tmp" \
-        USER "$CLAWDEE_USER"
-    install -m 0644 -o root -g root "$unit_tmp" /etc/systemd/system/claude-richard.service
-    rm -f "$unit_tmp"
-
-    ok "Richard installed at ${RICHARD_HOME}"
-}
-
-# =============================================================================
-# STEP 8: GLOBAL ~/.claude/ (OAuth creds live here, shared by CLAWDEE + Richard)
+# STEP 7: GLOBAL ~/.claude/ (OAuth creds live here)
 # =============================================================================
 
 setup_global_claude() {
@@ -1243,20 +1166,6 @@ enable_services() {
         log "claude-gateway NOT enabled (no token)."
     fi
 
-    if [[ -n "$RICHARD_BOT_TOKEN" ]]; then
-        systemctl enable claude-richard.service --quiet
-        if [[ "$oauth_ready" == "yes" ]]; then
-            if systemctl start claude-richard.service 2>/dev/null; then
-                ok "claude-richard enabled + started."
-            else
-                warn "claude-richard enabled, but start failed -- check 'journalctl -u claude-richard'."
-            fi
-        else
-            log "claude-richard enabled -- will start after OAuth under clawdee."
-        fi
-    else
-        log "claude-richard NOT enabled (no token)."
-    fi
 }
 
 # =============================================================================
@@ -1265,46 +1174,40 @@ enable_services() {
 
 final_instructions() {
     local clawdee_label="@${CLAWDEE_BOT_USERNAME:-<fill-in>}"
-    local richard_label="@${RICHARD_BOT_USERNAME:-<fill-in>}"
     local tokens_filled="no"
-    if [[ -n "$CLAWDEE_BOT_TOKEN" && -n "$RICHARD_BOT_TOKEN" && -n "$TG_USER_ID" ]]; then
+    if [[ -n "$CLAWDEE_BOT_TOKEN" && -n "$TG_USER_ID" ]]; then
         tokens_filled="yes"
     fi
 
     cat <<EOF
 
 $(printf '%b' "$C_GREEN")================================================================================
-  clawdee-install v${CLAWDEE_VERSION} complete.  Agent-native flow: the root-Claude
-  agent will configure the rest.  Do NOT run commands by hand below.
+  clawdee-install v${CLAWDEE_VERSION} complete.
 ================================================================================$(printf '%b' "$C_NC")
 
 Installed on this VPS:
   - User:      ${CLAWDEE_USER} (${CLAWDEE_HOME})
   - Claude:    ${CLAWDEE_HOME}/.local/bin/claude  (per-user, on PATH)
-  - CLAWDEE:    ${CLAWDEE_HOME}/${CLAWDEE_DIR_NAME}  (systemd: claude-gateway)
-  - Richard:   ${RICHARD_HOME}                       (systemd: claude-richard)
+  - CLAWDEE:   ${CLAWDEE_HOME}/${CLAWDEE_DIR_NAME}  (systemd: claude-gateway)
   - Skills:    ${CLAWDEE_HOME}/.claude-lab/clawdee/.claude/skills/  (10 skills)
   - Plugin:    ${CLAWDEE_HOME}/.claude/plugins/superpowers/
   - Sudoers:   /etc/sudoers.d/clawdee-agents  (narrow, 0440)
 
 $(printf '%b' "$C_BOLD")Tokens filled during install:$(printf '%b' "$C_NC") ${tokens_filled}
 
-$(printf '%b' "$C_BOLD")NEXT STEPS -- these are for the root-Claude agent, not the student:$(printf '%b' "$C_NC")
+$(printf '%b' "$C_BOLD")NEXT STEPS:$(printf '%b' "$C_NC")
 
-  $(printf '%b' "$C_YELLOW")1.$(printf '%b' "$C_NC") One-time Anthropic OAuth under clawdee (interactive -- opens browser):
+  $(printf '%b' "$C_YELLOW")1.$(printf '%b' "$C_NC") One-time Anthropic OAuth (interactive -- opens browser):
 
         sudo -u ${CLAWDEE_USER} -i bash -lc 'claude login'
 
-      Credentials land in ${CLAWDEE_HOME}/.claude/ and are shared by both agents.
+  $(printf '%b' "$C_YELLOW")2.$(printf '%b' "$C_NC") If token was skipped during install, fill it now and restart:
 
-  $(printf '%b' "$C_YELLOW")2.$(printf '%b' "$C_NC") If tokens were skipped during install, fill them now and restart:
-
-        # CLAWDEE: edit ${CLAWDEE_HOME}/${CLAWDEE_DIR_NAME}/config.json --
+        # edit ${CLAWDEE_HOME}/${CLAWDEE_DIR_NAME}/config.json --
         # set agents.clawdee.bot_token and allowed_user_ids=[<your id>]
-        # Richard: ${RICHARD_HOME}/.env -- TELEGRAM_BOT_TOKEN=..., ALLOWED_USERS=<id>
 
-        sudo systemctl restart claude-gateway claude-richard
-        sudo systemctl status  claude-gateway claude-richard --no-pager
+        sudo systemctl restart claude-gateway
+        sudo systemctl status  claude-gateway --no-pager
 
   $(printf '%b' "$C_YELLOW")3.$(printf '%b' "$C_NC") Smoke-checks:
 
@@ -1314,13 +1217,10 @@ $(printf '%b' "$C_BOLD")NEXT STEPS -- these are for the root-Claude agent, not t
         sudo -u ${CLAWDEE_USER} bash -lc 'which claude'         # ${CLAWDEE_HOME}/.local/bin/claude
         ls ${CLAWDEE_HOME}/.claude-lab/clawdee/.claude/          # CLAUDE.md, core/, skills/
         systemctl is-active claude-gateway                      # active (after steps 1+2)
-        systemctl is-active claude-richard                      # active (after steps 1+2)
         ls -la /etc/sudoers.d/clawdee-agents                    # exists, 0440
         ls ${CLAWDEE_HOME}/.claude-lab/clawdee/.claude/skills/ | wc -l   # 10
-        ls ${CLAWDEE_HOME}/.claude/plugins/superpowers/skills/ 2>/dev/null | wc -l
 
-  $(printf '%b' "$C_YELLOW")4.$(printf '%b' "$C_NC") Student talks to CLAWDEE in Telegram: ${clawdee_label}
-      If CLAWDEE dies, the student messages Richard:  ${richard_label}
+  $(printf '%b' "$C_YELLOW")4.$(printf '%b' "$C_NC") Пиши CLAWDEE в Telegram: ${clawdee_label}
 
 EOF
 }
@@ -1338,7 +1238,6 @@ main() {
     install_claude_cli
     collect_inputs
     install_clawdee
-    install_richard
     setup_global_claude
     install_skills
     install_superpowers
