@@ -1190,7 +1190,8 @@ $(printf '%b' "$C_BOLD")Tokens filled during install:$(printf '%b' "$C_NC") ${to
 
 $(printf '%b' "$C_BOLD")NEXT STEPS:$(printf '%b' "$C_NC")
 
-  $(printf '%b' "$C_YELLOW")1.$(printf '%b' "$C_NC") One-time Anthropic OAuth (interactive -- opens browser):
+  $(printf '%b' "$C_YELLOW")1.$(printf '%b' "$C_NC") One-time Anthropic OAuth -- requires Claude.ai Pro or Max subscription.
+      Run the command below, open the printed URL in your browser and log in:
 
         sudo -u ${CLAWDEE_USER} -i bash -lc 'claude login'
 
