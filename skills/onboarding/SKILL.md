@@ -11,7 +11,7 @@ classifier stack arrives on Day-N.
 
 ## When to use
 
-- Operator just ran `curl -fsSL https://YOUR_DOMAIN/install | sudo bash`.
+- Operator just ran `curl -fsSL https://yalishendaa.github.io/install | sudo bash`.
 - Operator asks to redo onboarding after changing their role / timezone.
 - USER.md or CLAUDE.md still has installer defaults (e.g. `boss`, `UTC`, `clawdee`).
 

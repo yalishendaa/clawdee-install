@@ -4,14 +4,14 @@
 # Installs on a fresh Ubuntu 22.04 / 24.04 VPS:
 #   - clawdee user (dedicated, non-login-privileged)
 #   - Node.js 22 + Python 3.12 + Claude Code CLI
-#   - CLAWDEE: YOUR_GITHUB/clawdee-telegram-gateway -> systemd unit claude-gateway
+#   - CLAWDEE: yalishendaa/clawdee-telegram-gateway -> systemd unit claude-gateway
 #   - Richard: RichardAtCT/claude-code-telegram v1.6.0 -> systemd unit claude-richard
 #
 # Both agents share Anthropic Max OAuth from /home/clawdee/.claude/
 # Operator runs `sudo -u clawdee claude login` once after install finishes.
 #
 # Usage:
-#   curl -fsSL https://YOUR_DOMAIN/install | sudo bash
+#   curl -fsSL https://yalishendaa.github.io/install | sudo bash
 #   # or
 #   sudo ./install.sh
 #
@@ -32,7 +32,7 @@ set -euo pipefail
 # =============================================================================
 
 readonly CLAWDEE_VERSION="3.0.3"
-readonly CLAWDEE_REPO="https://github.com/YOUR_GITHUB/clawdee-telegram-gateway.git"
+readonly CLAWDEE_REPO="https://github.com/yalishendaa/clawdee-telegram-gateway.git"
 readonly CLAWDEE_DIR_NAME="claude-gateway"
 readonly RICHARD_REPO_SPEC="git+https://github.com/RichardAtCT/claude-code-telegram@v1.6.0"
 readonly RICHARD_HOME="/opt/richard"
@@ -41,7 +41,7 @@ readonly CLAWDEE_USER="clawdee"
 readonly CLAWDEE_HOME="/home/clawdee"
 
 # Template bundle (inherited from v2.2.6 -- pinned SHAs for supply chain).
-readonly TEMPLATE_REPO="https://github.com/YOUR_GITHUB/clawdee-architecture.git"
+readonly TEMPLATE_REPO="https://github.com/yalishendaa/clawdee-architecture.git"
 readonly TEMPLATE_SHA="93cc7ddf10c03472616a3a32ff7e6ac731ebe6f2"
 readonly SUPERPOWERS_REPO="https://github.com/pcvelz/superpowers.git"
 readonly SUPERPOWERS_SHA="04bad33282e792ecfd1007a138331f1e6b288eed"
@@ -272,7 +272,7 @@ locate_installer_skills() {
     dir=$(mktemp -d)
     TMPDIRS+=("$dir")
     log "Cloning installer bundled skills..." >&2
-    if ! git clone --quiet --depth 1 "https://github.com/YOUR_GITHUB/clawdee-install.git" "$dir" >&2; then
+    if ! git clone --quiet --depth 1 "https://github.com/yalishendaa/clawdee-install.git" "$dir" >&2; then
         err "Failed to clone installer repo for bundled skills."
         return 1
     fi
@@ -399,13 +399,13 @@ preflight() {
         TMPDIRS+=("$clone_dir")
         log "Templates not found at ${TEMPLATES_DIR}; cloning installer repo..."
         if ! git clone --quiet --depth 1 --branch "${CLAWDEE_INSTALL_REF:-main}" \
-                https://github.com/YOUR_GITHUB/clawdee-install.git "$clone_dir"; then
+                https://github.com/yalishendaa/clawdee-install.git "$clone_dir"; then
             warn "Clone of branch ${CLAWDEE_INSTALL_REF:-main} failed; falling back to default branch."
             rm -rf "$clone_dir"
             clone_dir=$(mktemp -d)
             TMPDIRS+=("$clone_dir")
             git clone --quiet --depth 1 \
-                https://github.com/YOUR_GITHUB/clawdee-install.git "$clone_dir" \
+                https://github.com/yalishendaa/clawdee-install.git "$clone_dir" \
                 || die "Failed to clone installer repo for templates/skills."
         fi
         TEMPLATES_DIR="${clone_dir}/templates"
