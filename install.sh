@@ -102,12 +102,22 @@ EOF
 # =============================================================================
 
 apt_get() {
+    # Stop unattended-upgrades on first call so it doesn't hold the lock for
+    # the entire install. Safe to call multiple times (systemctl is idempotent).
+    systemctl stop unattended-upgrades 2>/dev/null || true
+    systemctl stop apt-daily.service apt-daily-upgrade.service 2>/dev/null || true
+
     local tries=0
-    local max_tries=20
-    while fuser /var/lib/dpkg/lock-frontend &>/dev/null || fuser /var/lib/apt/lists/lock &>/dev/null; do
+    local max_tries=100  # 5 minutes
+    while fuser /var/lib/dpkg/lock-frontend &>/dev/null || \
+          fuser /var/lib/apt/lists/lock &>/dev/null || \
+          fuser /var/lib/dpkg/lock &>/dev/null; do
         ((tries++))
         if (( tries > max_tries )); then
-            die "Another apt/dpkg process holds the lock for too long. Aborting."
+            die "dpkg lock held for >5 min. Run: sudo kill \$(fuser /var/lib/dpkg/lock-frontend) && sudo dpkg --configure -a"
+        fi
+        if (( tries % 10 == 0 )); then
+            log "Waiting for dpkg lock... (${tries}/${max_tries})"
         fi
         sleep 3
     done
