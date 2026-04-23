@@ -40,7 +40,7 @@ readonly TEMPLATE_SHA="93cc7ddf10c03472616a3a32ff7e6ac731ebe6f2"
 readonly SUPERPOWERS_REPO="https://github.com/pcvelz/superpowers.git"
 readonly SUPERPOWERS_SHA="04bad33282e792ecfd1007a138331f1e6b288eed"
 
-# 6 skills from template + 4 bundled with installer = 10 total (prod parity).
+# 6 skills from template + 4 bundled with installer = 10 total.
 readonly SKILLS_FROM_TEMPLATE=(groq-voice markdown-new perplexity-research datawrapper excalidraw youtube-transcript)
 readonly SKILLS_FROM_INSTALLER=(onboarding self-compiler quick-reminders present)
 
@@ -441,7 +441,7 @@ install_apt_deps() {
         cron
 
     # Python 3.12: native on Ubuntu 24.04. On 22.04 we need deadsnakes PPA
-    # because the default python3 is 3.10 and Day 1 promises "Python 3.12+".
+    # because the default python3 is 3.10 and this installer requires 3.12+.
     # shellcheck disable=SC1091
     . /etc/os-release
     case "${VERSION_ID:-}" in
@@ -669,8 +669,7 @@ install_clawdee() {
         as_clawdee "${venv}/bin/pip" install -r "${dir}/requirements.txt" --quiet
     fi
 
-    # gateway config.json. Holds bot_token and allowed_user_ids inline (Day 1
-    # workshop format). chmod 0600 because it contains a secret.
+    # gateway config.json. chmod 0600 because it contains a secret.
     local wsroot="${CLAWDEE_HOME}/.claude-lab/clawdee/.claude"
     install -d -m 0755 -o "$CLAWDEE_USER" -g "$CLAWDEE_USER" \
         "${CLAWDEE_HOME}/.claude-lab" \
@@ -684,8 +683,8 @@ install_clawdee() {
         USER        "$CLAWDEE_USER" \
         AGENT_NAME  "clawdee" \
         USER_NAME   "$OPERATOR_NAME"
-    # Inject bot_token and allowed_user_ids via jq. Values may be empty if the
-    # student skipped the prompt -- agent fills them in via Day 1 Block 5.
+    # Inject bot_token and allowed_user_ids via jq. Values may be empty if
+    # token was skipped -- edit config.json manually afterwards.
     local patched
     patched=$(mktemp)
     TMPFILES+=("$patched")
@@ -713,8 +712,7 @@ install_clawdee() {
 }
 
 # _write_agent_workspace <wsroot> -- lays down CLAUDE.md + core/ tree for CLAWDEE.
-# Matches prod smoke-check #5: ls ~/.claude-lab/clawdee/.claude/ must show
-# CLAUDE.md, USER.md (under core/), skills/.
+# Lays down CLAUDE.md + core/ tree for CLAWDEE.
 _write_agent_workspace() {
     local ws="$1"
 
@@ -984,8 +982,8 @@ install_sudoers() {
 
     cat > "$tmp" <<SUDOERS
 # clawdee-install v${CLAWDEE_VERSION} -- passwordless sudo for 'clawdee'.
-# Scope: systemctl + journalctl for two agent units, plus apt package mgmt
-# (Day 1 contract: Richard can run 'sudo apt' for self-repair / package install).
+# Scope: systemctl + journalctl for the agent unit, plus apt package mgmt
+# so the agent can self-repair / install packages.
 
 Cmnd_Alias CLAWDEE_SYSTEMCTL = \\
     /usr/bin/systemctl start claude-gateway, \\
@@ -1032,9 +1030,7 @@ SUDOERS
 # =============================================================================
 
 # Install the 5 memory-rotation scripts into the clawdee workspace and register
-# them with clawdee's crontab. Matches the Day 2 self-diagnostic contract: a
-# healthy agent has rotate-warm / trim-hot / compress-warm / ov-session-sync /
-# memory-rotate on cron.
+# them with clawdee's crontab.
 install_memory_cron() {
     step 12 "Installing memory-rotation scripts + cron"
 
@@ -1058,9 +1054,8 @@ install_memory_cron() {
     for name in "${required[@]}"; do
         local src="${scripts_src}/${name}.sh"
         if [[ ! -f "$src" ]]; then
-            # Day-2 self-diagnostic requires all 5 jobs on cron. A partial
-            # install would leave dead cron entries pointing at missing files
-            # -- fail loud so the student doesn't ship a half-wired workspace.
+            # A partial install would leave dead cron entries pointing at
+            # missing files -- fail loud to avoid a broken cron setup.
             err "Memory script '${name}.sh' missing at ${src} -- refusing partial install."
             return 1
         fi
