@@ -35,9 +35,9 @@ readonly CLAWDEE_HOME="/home/clawdee"
 
 # Template bundle (pinned SHAs).
 readonly TEMPLATE_REPO="https://github.com/yalishendaa/clawdee-architecture.git"
-readonly TEMPLATE_SHA="93cc7ddf10c03472616a3a32ff7e6ac731ebe6f2"
-readonly SUPERPOWERS_REPO="https://github.com/pcvelz/superpowers.git"
-readonly SUPERPOWERS_SHA="04bad33282e792ecfd1007a138331f1e6b288eed"
+readonly TEMPLATE_SHA="deba073228a144ab8c0291082ddef05031c1be58"
+readonly SUPERPOWERS_REPO="https://github.com/yalishendaa/clawdee-superpowers.git"
+readonly SUPERPOWERS_SHA="4372379c9b061b4d183ec1b6cd4cc19a25b99191"
 
 # 6 skills from template + 4 bundled with installer = 10 total.
 readonly SKILLS_FROM_TEMPLATE=(groq-voice markdown-new perplexity-research datawrapper excalidraw youtube-transcript)
@@ -97,7 +97,7 @@ EOF
 # =============================================================================
 
 apt_get() {
-    # Stop unattended-upgrades on first call so it doesn't hold the lock for
+    # Stop unattended-upgrades on first call s  o it doesn't hold the lock for
     # the entire install. Safe to call multiple times (systemctl is idempotent).
     systemctl stop unattended-upgrades 2>/dev/null || true
     systemctl stop apt-daily.service apt-daily-upgrade.service 2>/dev/null || true
