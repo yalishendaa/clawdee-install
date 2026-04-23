@@ -1,0 +1,21 @@
+[Unit]
+Description=Claude AI Telegram Gateway
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User={{USER}}
+Group={{USER}}
+WorkingDirectory=/home/{{USER}}/claude-gateway
+ExecStart=/home/{{USER}}/claude-gateway/.venv/bin/python /home/{{USER}}/claude-gateway/gateway.py
+Restart=on-failure
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=claude-gateway
+Environment=HOME=/home/{{USER}}
+Environment=PATH=/home/{{USER}}/.local/bin:/usr/local/bin:/usr/bin:/bin
+
+[Install]
+WantedBy=multi-user.target
