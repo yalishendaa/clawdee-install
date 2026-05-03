@@ -815,11 +815,43 @@ setup_global_claude() {
       "Bash(cat:*)", "Bash(ls:*)", "Bash(mkdir:*)",
       "Bash(chmod:*)", "Bash(echo:*)",
       "Read", "Write", "Edit"
+    ],
+    "deny": [
+      "Bash(sudo:*)", "Bash(/usr/bin/sudo:*)",
+      "Bash(su:*)", "Bash(/usr/bin/su:*)",
+      "Bash(apt:*)", "Bash(apt-get:*)",
+      "Bash(/usr/bin/apt:*)", "Bash(/usr/bin/apt-get:*)",
+      "Bash(systemctl:*)", "Bash(/usr/bin/systemctl:*)",
+      "Bash(journalctl:*)", "Bash(/usr/bin/journalctl:*)",
+      "Bash(chown:*)", "Bash(chgrp:*)",
+      "Bash(mount:*)", "Bash(umount:*)"
     ]
   }
 }
 SJEOF
         write_as_user "$tmp" "$settings_json" 0644
+    fi
+
+    local settings_safe_tmp
+    settings_safe_tmp=$(mktemp)
+    TMPFILES+=("$settings_safe_tmp")
+    if jq '
+        .permissions.deny = (
+            ((.permissions.deny // []) + [
+                "Bash(sudo:*)", "Bash(/usr/bin/sudo:*)",
+                "Bash(su:*)", "Bash(/usr/bin/su:*)",
+                "Bash(apt:*)", "Bash(apt-get:*)",
+                "Bash(/usr/bin/apt:*)", "Bash(/usr/bin/apt-get:*)",
+                "Bash(systemctl:*)", "Bash(/usr/bin/systemctl:*)",
+                "Bash(journalctl:*)", "Bash(/usr/bin/journalctl:*)",
+                "Bash(chown:*)", "Bash(chgrp:*)",
+                "Bash(mount:*)", "Bash(umount:*)"
+            ]) | unique
+        )
+    ' "$settings_json" > "$settings_safe_tmp" 2>/dev/null; then
+        write_as_user "$settings_safe_tmp" "$settings_json" 0644
+    else
+        warn "Could not merge safety denies into ${settings_json}; leaving existing settings unchanged."
     fi
 
     local mcp_json="${claude_dir}/mcp.json"
@@ -968,51 +1000,18 @@ install_superpowers() {
 }
 
 # =============================================================================
-# STEP 10: SUDOERS (passwordless narrow-scope for agent self-repair)
+# STEP 10: LEGACY SUDOERS CLEANUP
 # =============================================================================
 
-install_sudoers() {
-    step 10 "Granting clawdee narrow passwordless sudo"
-
+remove_legacy_sudoers() {
+    step 10 "Removing legacy clawdee sudoers"
     local sudoers_file="/etc/sudoers.d/clawdee-agents"
-    local tmp
-    tmp=$(mktemp)
-    TMPFILES+=("$tmp")
-
-    cat > "$tmp" <<SUDOERS
-# clawdee-install v${CLAWDEE_VERSION} -- passwordless sudo for 'clawdee'.
-# Scope: systemctl + journalctl for claude-gateway, plus apt package mgmt
-# so the agent can self-repair / install packages.
-
-Cmnd_Alias CLAWDEE_SYSTEMCTL = \\
-    /usr/bin/systemctl start claude-gateway, \\
-    /usr/bin/systemctl stop claude-gateway, \\
-    /usr/bin/systemctl restart claude-gateway, \\
-    /usr/bin/systemctl status claude-gateway, \\
-    /usr/bin/systemctl is-active claude-gateway, \\
-    /usr/bin/systemctl enable claude-gateway, \\
-    /usr/bin/systemctl disable claude-gateway, \\
-    /usr/bin/systemctl daemon-reload
-
-Cmnd_Alias CLAWDEE_JOURNAL = \\
-    /usr/bin/journalctl -u claude-gateway, \\
-    /usr/bin/journalctl -u claude-gateway *
-
-Cmnd_Alias CLAWDEE_APT = \\
-    /usr/bin/apt, /usr/bin/apt *, \\
-    /usr/bin/apt-get, /usr/bin/apt-get *
-
-${CLAWDEE_USER} ALL=(root) NOPASSWD: CLAWDEE_SYSTEMCTL, CLAWDEE_JOURNAL, CLAWDEE_APT
-SUDOERS
-
-    # Validate syntax before installing -- a broken sudoers can lock out sudo.
-    if ! visudo -cf "$tmp" >/dev/null 2>&1; then
-        err "Generated sudoers failed visudo -cf syntax check. Aborting install to avoid lockout."
-        return 1
+    if [[ -e "$sudoers_file" ]]; then
+        rm -f "$sudoers_file"
+        ok "Removed legacy ${sudoers_file}; ${CLAWDEE_USER} has no installer-managed passwordless sudo."
+    else
+        ok "No legacy ${sudoers_file} present."
     fi
-
-    install -m 0440 -o root -g root "$tmp" "$sudoers_file"
-    ok "Sudoers installed at ${sudoers_file} (0440)."
 }
 
 # =============================================================================
@@ -1174,7 +1173,7 @@ Installed on this VPS:
   - CLAWDEE:   ${CLAWDEE_HOME}/${CLAWDEE_DIR_NAME}  (systemd: claude-gateway)
   - Skills:    ${CLAWDEE_HOME}/.claude-lab/clawdee/.claude/skills/  (${SKILLS_INSTALLED_COUNT}/${SKILLS_EXPECTED_COUNT} installed)
   - Plugin:    ${CLAWDEE_HOME}/.claude/plugins/superpowers/
-  - Sudoers:   /etc/sudoers.d/clawdee-agents  (gateway only, 0440)
+  - Privilege: ${CLAWDEE_USER} has no installer-managed passwordless sudo
 
 $(printf '%b' "$C_BOLD")Tokens filled during install:$(printf '%b' "$C_NC") ${tokens_filled}
 
@@ -1201,7 +1200,7 @@ $(printf '%b' "$C_BOLD")NEXT STEPS:$(printf '%b' "$C_NC")
         sudo -u ${CLAWDEE_USER} bash -lc 'which claude'         # ${CLAWDEE_HOME}/.local/bin/claude
         ls ${CLAWDEE_HOME}/.claude-lab/clawdee/.claude/          # CLAUDE.md, core/, skills/
         systemctl is-active claude-gateway                      # active (after steps 1+2)
-        ls -la /etc/sudoers.d/clawdee-agents                    # exists, 0440
+        test ! -e /etc/sudoers.d/clawdee-agents                 # no agent sudoers
         ls ${CLAWDEE_HOME}/.claude-lab/clawdee/.claude/skills/ | wc -l   # expected ${SKILLS_EXPECTED_COUNT}
 
   $(printf '%b' "$C_YELLOW")4.$(printf '%b' "$C_NC") Пиши CLAWDEE в Telegram: ${clawdee_label}
@@ -1225,7 +1224,7 @@ main() {
     setup_global_claude
     install_skills
     install_superpowers
-    install_sudoers
+    remove_legacy_sudoers
     install_memory_cron
     enable_services
     final_instructions

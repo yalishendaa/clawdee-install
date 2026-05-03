@@ -16,6 +16,17 @@ StandardError=journal
 SyslogIdentifier=claude-gateway
 Environment=HOME=/home/{{USER}}
 Environment=PATH=/home/{{USER}}/.local/bin:/usr/local/bin:/usr/bin:/bin
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ReadWritePaths=/home/{{USER}}
+CapabilityBoundingSet=
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+RestrictRealtime=true
+LockPersonality=true
+SystemCallArchitectures=native
 
 [Install]
 WantedBy=multi-user.target
