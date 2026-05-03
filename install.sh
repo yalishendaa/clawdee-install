@@ -30,6 +30,7 @@ set -euo pipefail
 readonly CLAWDEE_REPO="https://github.com/yalishendaa/clawdee-telegram-gateway.git"
 readonly CLAWDEE_DIR_NAME="claude-gateway"
 readonly NODE_MAJOR="22"
+readonly CLAWDEE_VERSION="${CLAWDEE_VERSION:-0.1.0}"
 readonly CLAWDEE_USER="clawdee"
 readonly CLAWDEE_HOME="/home/clawdee"
 
@@ -42,6 +43,7 @@ readonly SUPERPOWERS_SHA="4372379c9b061b4d183ec1b6cd4cc19a25b99191"
 # 6 skills from template + 4 bundled with installer = 10 total.
 readonly SKILLS_FROM_TEMPLATE=(groq-voice markdown-new perplexity-research datawrapper excalidraw youtube-transcript)
 readonly SKILLS_FROM_INSTALLER=(onboarding self-compiler quick-reminders present)
+readonly SKILLS_EXPECTED_COUNT=$(( ${#SKILLS_FROM_TEMPLATE[@]} + ${#SKILLS_FROM_INSTALLER[@]} ))
 
 _SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" 2>/dev/null && pwd)"
 readonly TEMPLATES_DIR_DEFAULT="${_SCRIPT_DIR}/templates"
@@ -53,6 +55,7 @@ TEMPLATES_DIR="${CLAWDEE_TEMPLATES_DIR:-$TEMPLATES_DIR_DEFAULT}"
 INSTALLER_ROOT="${CLAWDEE_INSTALLER_ROOT:-$INSTALLER_ROOT_DEFAULT}"
 TEMPLATE_CLONE_DIR=""
 INSTALLER_SKILLS_DIR=""
+SKILLS_INSTALLED_COUNT=0
 
 # =============================================================================
 # TERMINAL OUTPUT
@@ -97,7 +100,7 @@ EOF
 # =============================================================================
 
 apt_get() {
-    # Stop unattended-upgrades on first call s  o it doesn't hold the lock for
+    # Stop unattended-upgrades on first call so it doesn't hold the lock for
     # the entire install. Safe to call multiple times (systemctl is idempotent).
     systemctl stop unattended-upgrades 2>/dev/null || true
     systemctl stop apt-daily.service apt-daily-upgrade.service 2>/dev/null || true
@@ -487,11 +490,33 @@ install_node() {
 }
 
 # =============================================================================
-# STEP 3: CLAUDE CODE CLI
+# STEP 3: CLAWDEE USER
+# =============================================================================
+
+ensure_clawdee_user() {
+    step 3 "Ensuring '${CLAWDEE_USER}' system user"
+
+    if id -u "$CLAWDEE_USER" &>/dev/null; then
+        ok "User '${CLAWDEE_USER}' already exists."
+    else
+        useradd --create-home --shell /bin/bash "$CLAWDEE_USER"
+        ok "User '${CLAWDEE_USER}' created."
+    fi
+
+    # Make sure home is usable.
+    if [[ ! -d "$CLAWDEE_HOME" ]]; then
+        die "Home dir ${CLAWDEE_HOME} missing after useradd."
+    fi
+    chown "${CLAWDEE_USER}:${CLAWDEE_USER}" "$CLAWDEE_HOME"
+    chmod 0755 "$CLAWDEE_HOME"
+}
+
+# =============================================================================
+# STEP 4: CLAUDE CODE CLI
 # =============================================================================
 
 install_claude_cli() {
-    step 3 "Installing Claude Code CLI (per-user for ${CLAWDEE_USER})"
+    step 4 "Installing Claude Code CLI (per-user for ${CLAWDEE_USER})"
 
     local claude_bin="${CLAWDEE_HOME}/.local/bin/claude"
 
@@ -555,28 +580,6 @@ _ensure_path_export() {
         fi
         install -o "$CLAWDEE_USER" -g "$CLAWDEE_USER" -m 0644 "$tmp" "$rc"
     done
-}
-
-# =============================================================================
-# STEP 4: CLAWDEE USER
-# =============================================================================
-
-ensure_clawdee_user() {
-    step 4 "Ensuring '${CLAWDEE_USER}' system user"
-
-    if id -u "$CLAWDEE_USER" &>/dev/null; then
-        ok "User '${CLAWDEE_USER}' already exists."
-    else
-        useradd --create-home --shell /bin/bash "$CLAWDEE_USER"
-        ok "User '${CLAWDEE_USER}' created."
-    fi
-
-    # Make sure home is usable.
-    if [[ ! -d "$CLAWDEE_HOME" ]]; then
-        die "Home dir ${CLAWDEE_HOME} missing after useradd."
-    fi
-    chown "${CLAWDEE_USER}:${CLAWDEE_USER}" "$CLAWDEE_HOME"
-    chmod 0755 "$CLAWDEE_HOME"
 }
 
 # =============================================================================
@@ -710,7 +713,6 @@ install_clawdee() {
 }
 
 # _write_agent_workspace <wsroot> -- lays down CLAUDE.md + core/ tree for CLAWDEE.
-# Lays down CLAUDE.md + core/ tree for CLAWDEE.
 _write_agent_workspace() {
     local ws="$1"
 
@@ -790,7 +792,7 @@ REOF
 # =============================================================================
 
 setup_global_claude() {
-    step 8 "Setting up ${CLAWDEE_HOME}/.claude/ (shared OAuth dir)"
+    step 7 "Setting up ${CLAWDEE_HOME}/.claude/ (global OAuth dir)"
 
     local claude_dir="${CLAWDEE_HOME}/.claude"
     install -d -m 0700 -o "$CLAWDEE_USER" -g "$CLAWDEE_USER" "$claude_dir"
@@ -829,9 +831,7 @@ SJEOF
         write_as_user "$tmp" "$mcp_json" 0644
     fi
 
-    # Global CLAUDE.md -- loaded by every Claude Code session under clawdee user.
-    # Shared by CLAWDEE (chat agent) and Richard (server-doctor) so Richard is
-    # not blind about the owner, language, and safety rules.
+    # Global CLAUDE.md -- owner profile and defaults for sessions under clawdee.
     local global_claude_md="${claude_dir}/CLAUDE.md"
     if [[ ! -f "$global_claude_md" ]]; then
         local tmp
@@ -851,11 +851,11 @@ SJEOF
 }
 
 # =============================================================================
-# STEP 9: SKILLS (6 from template + 4 bundled = 10)
+# STEP 8: SKILLS (6 from template + 4 bundled = 10)
 # =============================================================================
 
 install_skills() {
-    step 9 "Installing ${#SKILLS_FROM_TEMPLATE[@]} template + ${#SKILLS_FROM_INSTALLER[@]} bundled skills"
+    step 8 "Installing ${#SKILLS_FROM_TEMPLATE[@]} template + ${#SKILLS_FROM_INSTALLER[@]} bundled skills"
 
     local dst_parent="${CLAWDEE_HOME}/.claude-lab/clawdee/.claude/skills"
     install -d -m 0755 -o "$CLAWDEE_USER" -g "$CLAWDEE_USER" "$dst_parent"
@@ -900,15 +900,16 @@ install_skills() {
     fi
 
     fix_owner "$dst_parent"
-    ok "Skills installed: ${installed[*]:-<none>} (${#installed[@]}/10)"
+    SKILLS_INSTALLED_COUNT="${#installed[@]}"
+    ok "Skills installed: ${installed[*]:-<none>} (${SKILLS_INSTALLED_COUNT}/${SKILLS_EXPECTED_COUNT})"
 }
 
 # =============================================================================
-# STEP 10: SUPERPOWERS PLUGIN
+# STEP 9: SUPERPOWERS PLUGIN
 # =============================================================================
 
 install_superpowers() {
-    step 10 "Installing Superpowers plugin @ ${SUPERPOWERS_SHA:0:8}"
+    step 9 "Installing Superpowers plugin @ ${SUPERPOWERS_SHA:0:8}"
 
     local plugins_dir="${CLAWDEE_HOME}/.claude/plugins"
     local sp_dir="${plugins_dir}/superpowers"
@@ -967,11 +968,11 @@ install_superpowers() {
 }
 
 # =============================================================================
-# STEP 11: SUDOERS (passwordless narrow-scope for agent self-repair)
+# STEP 10: SUDOERS (passwordless narrow-scope for agent self-repair)
 # =============================================================================
 
 install_sudoers() {
-    step 11 "Granting clawdee narrow passwordless sudo"
+    step 10 "Granting clawdee narrow passwordless sudo"
 
     local sudoers_file="/etc/sudoers.d/clawdee-agents"
     local tmp
@@ -980,7 +981,7 @@ install_sudoers() {
 
     cat > "$tmp" <<SUDOERS
 # clawdee-install v${CLAWDEE_VERSION} -- passwordless sudo for 'clawdee'.
-# Scope: systemctl + journalctl for the agent unit, plus apt package mgmt
+# Scope: systemctl + journalctl for claude-gateway, plus apt package mgmt
 # so the agent can self-repair / install packages.
 
 Cmnd_Alias CLAWDEE_SYSTEMCTL = \\
@@ -991,20 +992,11 @@ Cmnd_Alias CLAWDEE_SYSTEMCTL = \\
     /usr/bin/systemctl is-active claude-gateway, \\
     /usr/bin/systemctl enable claude-gateway, \\
     /usr/bin/systemctl disable claude-gateway, \\
-    /usr/bin/systemctl start claude-richard, \\
-    /usr/bin/systemctl stop claude-richard, \\
-    /usr/bin/systemctl restart claude-richard, \\
-    /usr/bin/systemctl status claude-richard, \\
-    /usr/bin/systemctl is-active claude-richard, \\
-    /usr/bin/systemctl enable claude-richard, \\
-    /usr/bin/systemctl disable claude-richard, \\
     /usr/bin/systemctl daemon-reload
 
 Cmnd_Alias CLAWDEE_JOURNAL = \\
     /usr/bin/journalctl -u claude-gateway, \\
-    /usr/bin/journalctl -u claude-gateway *, \\
-    /usr/bin/journalctl -u claude-richard, \\
-    /usr/bin/journalctl -u claude-richard *
+    /usr/bin/journalctl -u claude-gateway *
 
 Cmnd_Alias CLAWDEE_APT = \\
     /usr/bin/apt, /usr/bin/apt *, \\
@@ -1024,13 +1016,13 @@ SUDOERS
 }
 
 # =============================================================================
-# STEP 12: MEMORY ROTATION SCRIPTS + CRON
+# STEP 11: MEMORY ROTATION SCRIPTS + CRON
 # =============================================================================
 
 # Install the 5 memory-rotation scripts into the clawdee workspace and register
 # them with clawdee's crontab.
 install_memory_cron() {
-    step 12 "Installing memory-rotation scripts + cron"
+    step 11 "Installing memory-rotation scripts + cron"
 
     local scripts_src
     if [[ -d "${INSTALLER_ROOT}/scripts" ]]; then
@@ -1103,7 +1095,7 @@ src, dst = sys.argv[1], sys.argv[2]
 with open(src, encoding='utf-8') as f:
     text = f.read()
 cleaned = re.sub(
-    r'# clawdee-install v[0-9.]+: memory rotation.*?# clawdee-install memory rotation end\n?',
+    r'# clawdee-install v[^:\n]+: memory rotation.*?# clawdee-install memory rotation end\n?',
     '',
     text,
     flags=re.DOTALL,
@@ -1129,11 +1121,11 @@ PY
 }
 
 # =============================================================================
-# STEP 13: SYSTEMD ENABLE (do not start yet -- OAuth + tokens required first)
+# STEP 12: SYSTEMD ENABLE / CONDITIONAL START
 # =============================================================================
 
 enable_services() {
-    step 13 "Enabling systemd services (and starting if OAuth is already set up)"
+    step 12 "Enabling systemd services (and starting if OAuth is already set up)"
 
     systemctl daemon-reload
 
@@ -1142,10 +1134,9 @@ enable_services() {
         oauth_ready="yes"
     fi
 
-    # Always enable (on-boot auto-start). If tokens are present we also try
-    # start -- but only when OAuth credentials exist, otherwise the unit crashes.
+    # Always enable on boot. Start only when both Telegram token and OAuth exist.
+    systemctl enable claude-gateway.service --quiet
     if [[ -n "$CLAWDEE_BOT_TOKEN" ]]; then
-        systemctl enable claude-gateway.service --quiet
         if [[ "$oauth_ready" == "yes" ]]; then
             if systemctl start claude-gateway.service 2>/dev/null; then
                 ok "claude-gateway enabled + started."
@@ -1156,9 +1147,8 @@ enable_services() {
             log "claude-gateway enabled -- will start after OAuth under clawdee."
         fi
     else
-        log "claude-gateway NOT enabled (no token)."
+        log "claude-gateway enabled, but not started (no token)."
     fi
-
 }
 
 # =============================================================================
@@ -1182,9 +1172,9 @@ Installed on this VPS:
   - User:      ${CLAWDEE_USER} (${CLAWDEE_HOME})
   - Claude:    ${CLAWDEE_HOME}/.local/bin/claude  (per-user, on PATH)
   - CLAWDEE:   ${CLAWDEE_HOME}/${CLAWDEE_DIR_NAME}  (systemd: claude-gateway)
-  - Skills:    ${CLAWDEE_HOME}/.claude-lab/clawdee/.claude/skills/  (10 skills)
+  - Skills:    ${CLAWDEE_HOME}/.claude-lab/clawdee/.claude/skills/  (${SKILLS_INSTALLED_COUNT}/${SKILLS_EXPECTED_COUNT} installed)
   - Plugin:    ${CLAWDEE_HOME}/.claude/plugins/superpowers/
-  - Sudoers:   /etc/sudoers.d/clawdee-agents  (narrow, 0440)
+  - Sudoers:   /etc/sudoers.d/clawdee-agents  (gateway only, 0440)
 
 $(printf '%b' "$C_BOLD")Tokens filled during install:$(printf '%b' "$C_NC") ${tokens_filled}
 
@@ -1212,7 +1202,7 @@ $(printf '%b' "$C_BOLD")NEXT STEPS:$(printf '%b' "$C_NC")
         ls ${CLAWDEE_HOME}/.claude-lab/clawdee/.claude/          # CLAUDE.md, core/, skills/
         systemctl is-active claude-gateway                      # active (after steps 1+2)
         ls -la /etc/sudoers.d/clawdee-agents                    # exists, 0440
-        ls ${CLAWDEE_HOME}/.claude-lab/clawdee/.claude/skills/ | wc -l   # 10
+        ls ${CLAWDEE_HOME}/.claude-lab/clawdee/.claude/skills/ | wc -l   # expected ${SKILLS_EXPECTED_COUNT}
 
   $(printf '%b' "$C_YELLOW")4.$(printf '%b' "$C_NC") Пиши CLAWDEE в Telegram: ${clawdee_label}
 

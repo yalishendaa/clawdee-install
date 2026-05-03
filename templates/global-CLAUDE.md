@@ -1,7 +1,6 @@
 # Global agent context ({{USER_NAME}})
 
-This file is loaded by every Claude Code session under the `{{USER}}` user,
-including both the chat agent (CLAWDEE) and the server-doctor agent (Richard).
+This file is loaded by every Claude Code session under the `{{USER}}` user.
 Project-level CLAUDE.md files override or extend what is written here.
 
 ## Identity
